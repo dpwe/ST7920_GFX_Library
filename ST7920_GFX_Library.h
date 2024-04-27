@@ -21,7 +21,8 @@ class ST7920 : public Adafruit_GFX {
  	ST7920(uint8_t CS, uint8_t width=ST7920_WIDTH);
 
   	void begin(void);
-  	void clearDisplay(void);
+    void fillScreen(uint16_t color);
+    void clearDisplay(void);
   	void invertDisplay(void);
   	void display();
 

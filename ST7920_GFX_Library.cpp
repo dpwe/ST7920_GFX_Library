@@ -6,12 +6,35 @@
 
 uint8_t buff[2048] __attribute__ ((aligned (4)));		//This array serves as primitive "Video RAM" buffer.  Ensure it's 32-bit aligned.  Enough for 2 x ST7920s.
 
+static inline void _swap(int16_t* pa, int16_t* pb) {
+    int16_t t = *pa;
+    *pa = *pb;
+    *pb = t;
+}
+
 //This display is split into two halfs. Pages are 16bit long and pages are arranged in that way that are lied horizontaly instead of verticaly, unlike SSD1306 OLED, Nokia 5110 LCD, etc.
 //After 8 horizonral page is written, it jumps to half of the screen (Y = 32) and continues until 16 lines of page have been written. After that, we have set cursor in new line.
 void ST7920::drawPixel(int16_t x, int16_t y, uint16_t color) {
-	if(x<0 || x>=ST7920_WIDTH || y<0 || y>=ST7920_HEIGHT) return;
-  	uint8_t y0 = 0, x0 = 0;								//Define and initilize varilables for skiping rows
+  	uint8_t y0 = 0, x0 = 0;								    //Define and initilize varilables for skiping rows
   	uint16_t data, n;										//Define variable for sending data itno buffer (basicly, that is one line of page)
+    uint16_t w = width();
+    uint16_t h = height();
+    if ((x < 0) || (x >= w) || (y < 0) || (y >= h)) return;
+    // Pixel is in-bounds. Rotate coordinates if needed.
+    switch (getRotation()) {
+        case 1:
+            _swap(&x, &y);
+            x = w - x - 1;
+            break;
+        case 2:
+            x = w  - x - 1;
+            y = h - y - 1;
+            break;
+        case 3:
+            _swap(&x, &y);
+            y = h - y - 1;
+            break;
+    }
   	if (y > 31) {											//If Y coordinate is bigger than 31, that means we have to skip into that row, but we have to do that by adding 
     	y -= 32;
     	y0 = 16;
@@ -23,13 +46,13 @@ void ST7920::drawPixel(int16_t x, int16_t y, uint16_t color) {
   	if (!color) {
     	buff[n] &= (~data >> 8);
     	buff[n + 1] &= (~data & 0xFF);
-  	}else{
+  	} else {
     	buff[n] |= (data >> 8);
     	buff[n + 1] |= (data & 0xFF);
   	}
 }
 
-ST7920::ST7920(uint8_t CS, uint8_t width /* =ST7920_WIDTH */) : Adafruit_GFX(ST7920_HEIGHT, width) {
+ST7920::ST7920(uint8_t CS, uint8_t width /* =ST7920_WIDTH */) : Adafruit_GFX(width, ST7920_HEIGHT) {
   	cs = CS;
     buf_len = 1024;
 }
@@ -42,11 +65,18 @@ void ST7920::begin(void) {
   	digitalWrite(cs, LOW);
 }
 
+void ST7920::fillScreen(uint16_t color) {
+    uint32_t* p = (uint32_t*)buff;
+    uint32_t v = 0;
+    if (color)  v = 0xFFFFFFFF;
+    for(uint16_t i = 0; i < (buf_len >>2); i++) {
+        *p++ = v;
+    }
+}
+  
+
 void ST7920::clearDisplay() {
-  	uint32_t* p = (uint32_t*)&buff;
-  	for (uint16_t i = 0; i < (buf_len >> 2); i++) {
-    	p[i] = 0;
-  	}
+    fillScreen(0);
 }
 
 void ST7920::display() {
@@ -102,7 +132,24 @@ void ST7920::ST7920Command(uint8_t data) { //RS = 0 RW = 0
 //  - y rows are interleaved between top and bottom halves, so y=0, y=32, y=1, y=33 ...
 
 void ST7920_192::drawPixel(int16_t x, int16_t y, uint16_t color) {
-	if(x<0 || x>=ST7920_192_WIDTH || y<0 || y>=ST7920_HEIGHT) return;
+    uint16_t w = width();
+    uint16_t h = height();
+    if ((x < 0) || (x >= w) || (y < 0) || (y >= h)) return;
+    // Pixel is in-bounds. Rotate coordinates if needed.
+    switch (getRotation()) {
+        case 1:
+            _swap(&x, &y);
+            x = w - x - 1;
+            break;
+        case 2:
+            x = w - x - 1;
+            y = h - y - 1;
+            break;
+        case 3:
+            _swap(&x, &y);
+            y = h - y - 1;
+            break;
+    }
   	uint8_t x0 = 0;
   	uint16_t data, n, offset = 0;							//Define variable for sending data itno buffer (basicly, that is one line of page)
   	if (y > 31) {											//If Y coordinate is bigger than 31, that means we have to skip into that row, but we have to do that by adding 
